@@ -1,0 +1,70 @@
+{
+  "name": "restaurant-app",
+  "version": "1.0.0",
+  "description": "Offline Desktop Restaurant Management Application",
+  "main": "./out/main/index.js",
+  "homepage": "https://restaurant-app.local",
+  "scripts": {
+    "format": "prettier --write .",
+    "lint": "eslint . --ext .js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix",
+    "start": "electron-vite preview",
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "postinstall": "electron-builder install-app-deps",
+    "build:unpack": "npm run build && electron-builder --dir",
+    "build:win": "npm run build && electron-builder --win",
+    "build:mac": "npm run build && electron-builder --mac",
+    "build:linux": "npm run build && electron-builder --linux"
+  },
+  "dependencies": {
+    "@electron-toolkit/preload": "^3.0.2",
+    "@electron-toolkit/utils": "^4.0.0",
+    "better-sqlite3": "^11.0.0",
+    "google-auth-library": "^9.0.0",
+    "googleapis": "^140.0.0",
+    "jspdf": "^2.5.1",
+    "jspdf-autotable": "^3.8.2",
+    "lucide-react": "^0.400.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.23.1",
+    "recharts": "^2.12.7",
+    "zustand": "^4.5.2"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/better-sqlite3": "^7.6.9",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3",
+    "electron-vite": "^2.3.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.5.0",
+    "vite": "^5.3.1"
+  },
+  "build": {
+    "appId": "com.restaurant.app",
+    "productName": "Restaurant Manager",
+    "directories": {
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*",
+      "!node_modules"
+    ],
+    "mac": {
+      "target": "dmg",
+      "icon": "build/icon.icns"
+    },
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "build/icon.png"
+    }
+  }
+}
