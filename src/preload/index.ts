@@ -39,10 +39,35 @@ const api = {
     syncNow: () => ipcRenderer.invoke('sync:syncNow'),
     getStatus: () => ipcRenderer.invoke('sync:getStatus'),
     exportDb: () => ipcRenderer.invoke('sync:exportDb'),
-    importDb: () => ipcRenderer.invoke('sync:importDb')
+    importDb: () => ipcRenderer.invoke('sync:importDb'),
+    exportCsv: (type: string, from: string, to: string) => ipcRenderer.invoke('sync:exportCsv', type, from, to)
   },
   print: {
     printBill: (orderId: number) => ipcRenderer.invoke('print:bill', orderId)
+  },
+  expenses: {
+    create: (input: any) => ipcRenderer.invoke('expenses:create', input),
+    getAll: (filters?: any) => ipcRenderer.invoke('expenses:getAll', filters),
+    update: (id: number, input: any) => ipcRenderer.invoke('expenses:update', id, input),
+    delete: (id: number) => ipcRenderer.invoke('expenses:delete', id),
+    getSummary: (from: string, to: string) => ipcRenderer.invoke('expenses:getSummary', from, to)
+  },
+  fund: {
+    getBalance: () => ipcRenderer.invoke('fund:getBalance'),
+    setInitial: (amount: number) => ipcRenderer.invoke('fund:setInitial', amount),
+    getTransactions: (limit?: number) => ipcRenderer.invoke('fund:getTransactions', limit)
+  },
+  paymentMethods: {
+    getAll: () => ipcRenderer.invoke('paymentMethods:getAll'),
+    create: (label: string) => ipcRenderer.invoke('paymentMethods:create', label),
+    update: (id: number, label: string) => ipcRenderer.invoke('paymentMethods:update', id, label),
+    delete: (id: number) => ipcRenderer.invoke('paymentMethods:delete', id)
+  },
+  expenseCategories: {
+    getAll: () => ipcRenderer.invoke('expenseCategories:getAll'),
+    create: (name: string) => ipcRenderer.invoke('expenseCategories:create', name),
+    update: (id: number, name: string) => ipcRenderer.invoke('expenseCategories:update', id, name),
+    delete: (id: number) => ipcRenderer.invoke('expenseCategories:delete', id)
   }
 }
 

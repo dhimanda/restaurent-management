@@ -38,7 +38,34 @@
   --radius-xl: 16px;
 }
 
-/* Base reset */
+/* ─── Light Theme Overrides ─────────────────────────────────────────────────── */
+[data-theme="light"] {
+  --color-surface: #f8fafc;
+  --color-surface-card: #ffffff;
+  --color-surface-hover: #f1f5f9;
+  --color-surface-active: #e2e8f0;
+  --color-surface-modal: #ffffff;
+
+  --color-primary: #d97706;
+  --color-primary-hover: #b45309;
+  --color-primary-soft: rgba(217, 119, 6, 0.12);
+
+  --color-accent: #059669;
+  --color-accent-hover: #047857;
+
+  --color-danger: #dc2626;
+  --color-danger-hover: #b91c1c;
+  --color-danger-soft: rgba(220, 38, 38, 0.1);
+
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94a3b8;
+
+  --color-border: #e2e8f0;
+  --color-border-focus: #d97706;
+}
+
+/* ─── Base Reset ─────────────────────────────────────────────────────────────── */
 *, *::before, *::after {
   box-sizing: border-box;
 }
@@ -57,6 +84,7 @@ body {
   background-color: var(--color-surface);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 /* Scrollbar styling */

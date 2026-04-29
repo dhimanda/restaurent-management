@@ -1,4 +1,5 @@
 import Database from 'better-sqlite3'
+import { addFundTransaction } from './fund-queries'
 
 export interface OrderItemInput {
   menu_item_id: number
@@ -141,7 +142,17 @@ export function updateOrderStatus(db: Database.Database, id: number, status: str
   sql += ' WHERE id = ?'
   params.push(id)
 
-  return db.prepare(sql).run(...params)
+  const result = db.prepare(sql).run(...params)
+
+  // Credit fund balance when order is served
+  if (status === 'served') {
+    const order = db.prepare('SELECT grand_total FROM orders WHERE id = ?').get(id) as { grand_total: number } | undefined
+    if (order) {
+      addFundTransaction(db, 'sales', order.grand_total, id, 'Order #' + id + ' payment')
+    }
+  }
+
+  return result
 }
 
 export function cancelOrder(db: Database.Database, id: number) {

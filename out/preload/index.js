@@ -39,10 +39,35 @@ const api = {
     syncNow: () => electron.ipcRenderer.invoke("sync:syncNow"),
     getStatus: () => electron.ipcRenderer.invoke("sync:getStatus"),
     exportDb: () => electron.ipcRenderer.invoke("sync:exportDb"),
-    importDb: () => electron.ipcRenderer.invoke("sync:importDb")
+    importDb: () => electron.ipcRenderer.invoke("sync:importDb"),
+    exportCsv: (type, from, to) => electron.ipcRenderer.invoke("sync:exportCsv", type, from, to)
   },
   print: {
     printBill: (orderId) => electron.ipcRenderer.invoke("print:bill", orderId)
+  },
+  expenses: {
+    create: (input) => electron.ipcRenderer.invoke("expenses:create", input),
+    getAll: (filters) => electron.ipcRenderer.invoke("expenses:getAll", filters),
+    update: (id, input) => electron.ipcRenderer.invoke("expenses:update", id, input),
+    delete: (id) => electron.ipcRenderer.invoke("expenses:delete", id),
+    getSummary: (from, to) => electron.ipcRenderer.invoke("expenses:getSummary", from, to)
+  },
+  fund: {
+    getBalance: () => electron.ipcRenderer.invoke("fund:getBalance"),
+    setInitial: (amount) => electron.ipcRenderer.invoke("fund:setInitial", amount),
+    getTransactions: (limit) => electron.ipcRenderer.invoke("fund:getTransactions", limit)
+  },
+  paymentMethods: {
+    getAll: () => electron.ipcRenderer.invoke("paymentMethods:getAll"),
+    create: (label) => electron.ipcRenderer.invoke("paymentMethods:create", label),
+    update: (id, label) => electron.ipcRenderer.invoke("paymentMethods:update", id, label),
+    delete: (id) => electron.ipcRenderer.invoke("paymentMethods:delete", id)
+  },
+  expenseCategories: {
+    getAll: () => electron.ipcRenderer.invoke("expenseCategories:getAll"),
+    create: (name) => electron.ipcRenderer.invoke("expenseCategories:create", name),
+    update: (id, name) => electron.ipcRenderer.invoke("expenseCategories:update", id, name),
+    delete: (id) => electron.ipcRenderer.invoke("expenseCategories:delete", id)
   }
 };
 electron.contextBridge.exposeInMainWorld("api", api);

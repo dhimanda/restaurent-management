@@ -1,10 +1,12 @@
 import { useEffect } from 'react'
 import { useReportStore } from '../stores/useReportStore'
 import { useSettingsStore } from '../stores/useSettingsStore'
-import { ToastContainer } from '../components/ui/Toast'
+import { ToastContainer, showToast } from '../components/ui/Toast'
 import { formatCurrency, formatDateTime } from '../utils/format'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { Calendar, TrendingUp, ShoppingBag, DollarSign, Printer, Search } from 'lucide-react'
+import { Calendar, TrendingUp, ShoppingBag, DollarSign, Printer, Search, Download } from 'lucide-react'
+import jsPDF from 'jspdf'
+import autoTable from 'jspdf-autotable'
 
 const TABS = [
   { key: 'daily', label: 'Daily Summary' },
@@ -51,6 +53,22 @@ export function ReportsPage(): JSX.Element {
   )
 }
 
+function exportDailyPdf(s: any, date: string, currencySymbol: string) {
+  const doc = new jsPDF()
+  doc.setFontSize(16)
+  doc.text('Daily Report — ' + date, 14, 18)
+  doc.setFontSize(11)
+  doc.text('Orders: ' + s.total_orders + '  |  Revenue: ' + currencySymbol + s.total_revenue.toFixed(2), 14, 28)
+
+  autoTable(doc, {
+    startY: 36,
+    head: [['Item', 'Qty Sold', 'Revenue']],
+    body: (s.top_items || []).map((i: any) => [i.name, i.total_qty, currencySymbol + i.total_revenue.toFixed(2)]),
+    headStyles: { fillColor: [245, 158, 11] }
+  })
+  doc.save('daily-report-' + date + '.pdf')
+}
+
 function DailyTab({ currencySymbol, ic }: { currencySymbol: string; ic: string }) {
   const dailySummary = useReportStore(s => s.dailySummary)
   const selectedDate = useReportStore(s => s.selectedDate)
@@ -63,6 +81,15 @@ function DailyTab({ currencySymbol, ic }: { currencySymbol: string; ic: string }
       <div className="flex items-center gap-3 mb-6">
         <Calendar className="w-5 h-5 text-text-muted" />
         <input type="date" value={selectedDate} onChange={e => { setSelectedDate(e.target.value); setTimeout(() => fetchDailySummary(), 0) }} className={ic} />
+        {s && (
+          <button
+            id="daily-export-pdf-btn"
+            onClick={() => exportDailyPdf(s, selectedDate, currencySymbol)}
+            className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 rounded-lg text-sm font-medium min-h-[40px] hover:bg-emerald-500/25"
+          >
+            <Download className="w-4 h-4" />Export PDF
+          </button>
+        )}
       </div>
       {!s ? <p className="text-text-muted">No report data yet. Change the date or place some orders first.</p> : (
         <div>
@@ -111,13 +138,45 @@ function RangeTab({ currencySymbol, ic }: { currencySymbol: string; ic: string }
   const fetchDateRangeReport = useReportStore(s => s.fetchDateRangeReport)
   const r = dateRangeReport
 
+  const handleExportCsv = async () => {
+    const result = await window.api.sync.exportCsv('orders', dateFrom, dateTo)
+    showToast(result.message, result.success ? 'success' : 'error')
+  }
+
+  const handleExportPdf = () => {
+    if (!r) return
+    const doc = new jsPDF()
+    doc.setFontSize(16)
+    doc.text('Range Report: ' + dateFrom + ' to ' + dateTo, 14, 18)
+    autoTable(doc, {
+      startY: 28,
+      head: [['Order ID', 'Table', 'Status', 'Payment', 'Total', 'Time']],
+      body: (r.orders || []).map((o: any) => [
+        '#' + o.id, o.table_no || '-', o.status, o.payment_method,
+        currencySymbol + (o.grand_total || 0).toFixed(2), o.order_time
+      ]),
+      headStyles: { fillColor: [245, 158, 11] }
+    })
+    doc.save('range-report-' + dateFrom + '-to-' + dateTo + '.pdf')
+  }
+
   return (
     <div>
-      <div className="flex items-center gap-3 mb-6">
+      <div className="flex items-center gap-3 mb-6 flex-wrap">
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className={ic} />
         <span className="text-text-muted">to</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className={ic} />
-        <button onClick={() => fetchDateRangeReport()} className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-black font-medium rounded-lg text-sm min-h-[40px]">Generate</button>
+        <button id="range-generate-btn" onClick={() => fetchDateRangeReport()} className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-black font-medium rounded-lg text-sm min-h-[40px]">Generate</button>
+        {r && (
+          <>
+            <button id="range-export-csv-btn" onClick={handleExportCsv} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 rounded-lg text-sm font-medium min-h-[40px] hover:bg-emerald-500/25">
+              <Download className="w-4 h-4" />CSV
+            </button>
+            <button id="range-export-pdf-btn" onClick={handleExportPdf} className="flex items-center gap-2 px-4 py-2.5 bg-blue-500/15 text-blue-400 border border-blue-500/30 rounded-lg text-sm font-medium min-h-[40px] hover:bg-blue-500/25">
+              <Download className="w-4 h-4" />PDF
+            </button>
+          </>
+        )}
       </div>
       {!r ? <p className="text-text-muted">Select a range and click Generate</p> : (
         <div>
@@ -156,13 +215,46 @@ function ItemsTab({ currencySymbol, ic }: { currencySymbol: string; ic: string }
   const setDateTo = useReportStore(s => s.setDateTo)
   const fetchItemPerformance = useReportStore(s => s.fetchItemPerformance)
 
+  const handleExportCsv = async () => {
+    const result = await window.api.sync.exportCsv('items', dateFrom, dateTo)
+    showToast(result.message, result.success ? 'success' : 'error')
+  }
+
+  const handleExportPdf = () => {
+    if (itemPerformance.length === 0) return
+    const doc = new jsPDF()
+    doc.setFontSize(16)
+    doc.text('Item Performance: ' + dateFrom + ' to ' + dateTo, 14, 18)
+    autoTable(doc, {
+      startY: 28,
+      head: [['Item', 'Orders', 'Qty Sold', 'Revenue', 'Avg Price']],
+      body: itemPerformance.map((i: any) => [
+        i.name, i.order_count, i.total_qty,
+        currencySymbol + i.total_revenue.toFixed(2),
+        currencySymbol + i.avg_price.toFixed(2)
+      ]),
+      headStyles: { fillColor: [245, 158, 11] }
+    })
+    doc.save('item-performance-' + dateFrom + '-to-' + dateTo + '.pdf')
+  }
+
   return (
     <div>
-      <div className="flex gap-3 mb-6">
+      <div className="flex gap-3 mb-6 flex-wrap">
         <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className={ic} />
         <span className="text-text-muted self-center">to</span>
         <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className={ic} />
-        <button onClick={() => fetchItemPerformance()} className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-black font-medium rounded-lg text-sm min-h-[40px]">Generate</button>
+        <button id="items-generate-btn" onClick={() => fetchItemPerformance()} className="px-4 py-2.5 bg-primary hover:bg-primary-hover text-black font-medium rounded-lg text-sm min-h-[40px]">Generate</button>
+        {itemPerformance.length > 0 && (
+          <>
+            <button id="items-export-csv-btn" onClick={handleExportCsv} className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 rounded-lg text-sm font-medium min-h-[40px] hover:bg-emerald-500/25">
+              <Download className="w-4 h-4" />CSV
+            </button>
+            <button id="items-export-pdf-btn" onClick={handleExportPdf} className="flex items-center gap-2 px-4 py-2.5 bg-blue-500/15 text-blue-400 border border-blue-500/30 rounded-lg text-sm font-medium min-h-[40px] hover:bg-blue-500/25">
+              <Download className="w-4 h-4" />PDF
+            </button>
+          </>
+        )}
       </div>
       {itemPerformance.length === 0 ? <p className="text-text-muted">No data</p> : (
         <div className="bg-surface-card border border-border rounded-xl overflow-hidden">

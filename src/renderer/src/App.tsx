@@ -6,6 +6,7 @@ import { OrderPage } from './pages/OrderPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { ReportsPage } from './pages/ReportsPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { PaymentsPage } from './pages/PaymentsPage'
 import { useSettingsStore } from './stores/useSettingsStore'
 
 function App(): JSX.Element {
@@ -24,6 +25,7 @@ function App(): JSX.Element {
           <Route path="orders" element={<OrderPage />} />
           <Route path="dashboard" element={<DashboardPage />} />
           <Route path="reports" element={<ReportsPage />} />
+          <Route path="payments" element={<PaymentsPage />} />
           <Route path="settings" element={<SettingsPage />} />
         </Route>
       </Routes>

@@ -1,12 +1,13 @@
 import { useEffect, useRef } from 'react'
 import { useDashboardStore } from '../stores/useDashboardStore'
 import { useSettingsStore } from '../stores/useSettingsStore'
+import { useFundStore } from '../stores/useFundStore'
 import { Modal } from '../components/ui/Modal'
 import { showToast, ToastContainer } from '../components/ui/Toast'
 import { formatCurrency, getTimeElapsed } from '../utils/format'
 import { STATUS_BG_COLORS, STATUS_TEXT_COLORS, STATUS_LABELS } from '../utils/constants'
 import { Order } from '../types/order'
-import { Clock, Hash, Users, ChefHat, CheckCircle, XCircle, Printer, RefreshCw } from 'lucide-react'
+import { Clock, Hash, Users, ChefHat, CheckCircle, XCircle, Printer, RefreshCw, Wallet } from 'lucide-react'
 
 const FILTER_TABS = [
   { key: 'active', label: 'Active' },
@@ -20,10 +21,13 @@ const FILTER_TABS = [
 export function DashboardPage(): JSX.Element {
   const store = useDashboardStore()
   const currencySymbol = useSettingsStore(s => s.getSetting('currency_symbol', '$'))
+  const balance = useFundStore(s => s.balance)
+  const fetchBalance = useFundStore(s => s.fetchBalance)
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     store.fetchOrders()
+    fetchBalance()
     intervalRef.current = setInterval(() => store.fetchOrders(), 30000)
     return () => { if (intervalRef.current) clearInterval(intervalRef.current) }
   }, [])
@@ -41,7 +45,16 @@ export function DashboardPage(): JSX.Element {
       <ToastContainer />
       <div className="px-6 py-4 border-b border-border shrink-0">
         <div className="flex items-center justify-between mb-4">
-          <h1 className="text-2xl font-bold text-text-primary">Order Dashboard</h1>
+          <div className="flex items-center gap-4">
+            <h1 className="text-2xl font-bold text-text-primary">Order Dashboard</h1>
+            <div className="flex items-center gap-2 px-4 py-2 bg-surface-card border border-border rounded-xl">
+              <Wallet className="w-4 h-4 text-primary" />
+              <span className="text-sm text-text-muted">Balance:</span>
+              <span className={'text-sm font-bold ' + (balance < 0 ? 'text-red-400' : 'text-primary')}>
+                {formatCurrency(balance, currencySymbol)}
+              </span>
+            </div>
+          </div>
           <button onClick={() => store.fetchOrders()} className="flex items-center gap-2 px-4 py-2.5 bg-surface-hover border border-border rounded-xl text-text-secondary hover:text-text-primary transition-colors min-h-[44px]">
             <RefreshCw className={'w-4 h-4 ' + (store.isLoading ? 'animate-spin' : '')} /><span className="text-sm">Refresh</span>
           </button>

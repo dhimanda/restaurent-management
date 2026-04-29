@@ -21,8 +21,24 @@ const DEFAULT_SETTINGS = {
   tax_rate: "5",
   receipt_format: "a4",
   google_drive_connected: "false",
-  last_sync_time: ""
+  last_sync_time: "",
+  theme: "dark",
+  initial_fund: "0"
 };
+const DEFAULT_PAYMENT_METHODS = [
+  { label: "Cash", sort_order: 1 },
+  { label: "Card", sort_order: 2 },
+  { label: "Mobile Banking", sort_order: 3 },
+  { label: "Other", sort_order: 4 }
+];
+const DEFAULT_EXPENSE_CATEGORIES = [
+  { name: "Raw Materials", sort_order: 1 },
+  { name: "Utilities", sort_order: 2 },
+  { name: "Assets & Equipment", sort_order: 3 },
+  { name: "Salaries", sort_order: 4 },
+  { name: "Maintenance", sort_order: 5 },
+  { name: "Other", sort_order: 6 }
+];
 function seedDatabase(db) {
   const categoryCount = db.prepare("SELECT COUNT(*) as count FROM categories").get();
   if (categoryCount.count === 0) {
@@ -40,6 +56,30 @@ function seedDatabase(db) {
     const insertMany = db.transaction(() => {
       for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
         insertSetting.run(key, value);
+      }
+    });
+    insertMany();
+  } else {
+    const insertOrIgnore = db.prepare("INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)");
+    insertOrIgnore.run("theme", "dark");
+    insertOrIgnore.run("initial_fund", "0");
+  }
+  const pmCount = db.prepare("SELECT COUNT(*) as count FROM payment_methods").get();
+  if (pmCount.count === 0) {
+    const insertPm = db.prepare("INSERT INTO payment_methods (label, sort_order) VALUES (?, ?)");
+    const insertMany = db.transaction(() => {
+      for (const pm of DEFAULT_PAYMENT_METHODS) {
+        insertPm.run(pm.label, pm.sort_order);
+      }
+    });
+    insertMany();
+  }
+  const ecCount = db.prepare("SELECT COUNT(*) as count FROM expense_categories").get();
+  if (ecCount.count === 0) {
+    const insertEc = db.prepare("INSERT INTO expense_categories (name, sort_order) VALUES (?, ?)");
+    const insertMany = db.transaction(() => {
+      for (const ec of DEFAULT_EXPENSE_CATEGORIES) {
+        insertEc.run(ec.name, ec.sort_order);
       }
     });
     insertMany();
@@ -112,6 +152,39 @@ CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id);
 CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT
+);
+
+CREATE TABLE IF NOT EXISTS payment_methods (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  label TEXT NOT NULL UNIQUE,
+  sort_order INTEGER DEFAULT 0,
+  is_active INTEGER DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS expense_categories (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL UNIQUE,
+  sort_order INTEGER DEFAULT 0,
+  is_active INTEGER DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS expenses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  date TEXT NOT NULL,
+  amount REAL NOT NULL DEFAULT 0,
+  payment_method TEXT NOT NULL DEFAULT 'Cash',
+  category TEXT NOT NULL,
+  note TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS fund_transactions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  type TEXT NOT NULL CHECK(type IN ('initial_fund','sales','expense')),
+  reference_id INTEGER,
+  amount REAL NOT NULL,
+  note TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
 );
 `;
 let dbInstance = null;
@@ -275,6 +348,36 @@ function registerMenuHandlers(db) {
     return createCategory(db, name);
   });
 }
+function getFundBalance(db) {
+  const row = db.prepare(`
+    SELECT
+      COALESCE(SUM(CASE WHEN type IN ('initial_fund','sales') THEN amount ELSE 0 END), 0)
+      - COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as balance
+    FROM fund_transactions
+  `).get();
+  return row ? row.balance : 0;
+}
+function addFundTransaction(db, type, amount, referenceId, note) {
+  db.prepare(`
+    INSERT INTO fund_transactions (type, reference_id, amount, note)
+    VALUES (?, ?, ?, ?)
+  `).run(type, referenceId, amount, note);
+}
+function getFundTransactions(db, limit = 50) {
+  return db.prepare(`
+    SELECT * FROM fund_transactions
+    ORDER BY created_at DESC
+    LIMIT ?
+  `).all(limit);
+}
+function setInitialFund(db, amount) {
+  db.prepare("DELETE FROM fund_transactions WHERE type = 'initial_fund'").run();
+  db.prepare(`
+    INSERT INTO fund_transactions (type, reference_id, amount, note)
+    VALUES ('initial_fund', NULL, ?, 'Initial capital')
+  `).run(amount);
+  db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('initial_fund', ?)").run(String(amount));
+}
 function createOrder(db, order) {
   const defaultTaxRate = db.prepare("SELECT value FROM settings WHERE key = 'tax_rate'").get();
   const taxRate = defaultTaxRate ? parseFloat(defaultTaxRate.value) : 5;
@@ -376,7 +479,14 @@ function updateOrderStatus(db, id, status) {
   }
   sql += " WHERE id = ?";
   params.push(id);
-  return db.prepare(sql).run(...params);
+  const result = db.prepare(sql).run(...params);
+  if (status === "served") {
+    const order = db.prepare("SELECT grand_total FROM orders WHERE id = ?").get(id);
+    if (order) {
+      addFundTransaction(db, "sales", order.grand_total, id, "Order #" + id + " payment");
+    }
+  }
+  return result;
 }
 function cancelOrder(db, id) {
   return db.prepare("UPDATE orders SET status = 'cancelled' WHERE id = ?").run(id);
@@ -541,6 +651,34 @@ function setMultipleSettings(db, settings) {
   });
   insertMany();
 }
+function getAllPaymentMethods(db) {
+  return db.prepare("SELECT * FROM payment_methods ORDER BY sort_order, label").all();
+}
+function createPaymentMethod(db, label) {
+  const maxOrder = db.prepare("SELECT COALESCE(MAX(sort_order), 0) as m FROM payment_methods").get();
+  const result = db.prepare("INSERT INTO payment_methods (label, sort_order) VALUES (?, ?)").run(label, maxOrder.m + 1);
+  return db.prepare("SELECT * FROM payment_methods WHERE id = ?").get(result.lastInsertRowid);
+}
+function updatePaymentMethod(db, id, label) {
+  db.prepare("UPDATE payment_methods SET label = ? WHERE id = ?").run(label, id);
+}
+function deletePaymentMethod(db, id) {
+  db.prepare("DELETE FROM payment_methods WHERE id = ?").run(id);
+}
+function getAllExpenseCategories(db) {
+  return db.prepare("SELECT * FROM expense_categories ORDER BY sort_order, name").all();
+}
+function createExpenseCategory(db, name) {
+  const maxOrder = db.prepare("SELECT COALESCE(MAX(sort_order), 0) as m FROM expense_categories").get();
+  const result = db.prepare("INSERT INTO expense_categories (name, sort_order) VALUES (?, ?)").run(name, maxOrder.m + 1);
+  return db.prepare("SELECT * FROM expense_categories WHERE id = ?").get(result.lastInsertRowid);
+}
+function updateExpenseCategory(db, id, name) {
+  db.prepare("UPDATE expense_categories SET name = ? WHERE id = ?").run(name, id);
+}
+function deleteExpenseCategory(db, id) {
+  db.prepare("DELETE FROM expense_categories WHERE id = ?").run(id);
+}
 function registerSettingsHandlers(db) {
   electron.ipcMain.handle("settings:getAll", () => {
     return getAllSettings(db);
@@ -553,6 +691,128 @@ function registerSettingsHandlers(db) {
     setMultipleSettings(db, settings);
     return { success: true };
   });
+  electron.ipcMain.handle("paymentMethods:getAll", () => {
+    return getAllPaymentMethods(db);
+  });
+  electron.ipcMain.handle("paymentMethods:create", (_event, label) => {
+    return createPaymentMethod(db, label);
+  });
+  electron.ipcMain.handle("paymentMethods:update", (_event, id, label) => {
+    updatePaymentMethod(db, id, label);
+    return { success: true };
+  });
+  electron.ipcMain.handle("paymentMethods:delete", (_event, id) => {
+    deletePaymentMethod(db, id);
+    return { success: true };
+  });
+  electron.ipcMain.handle("expenseCategories:getAll", () => {
+    return getAllExpenseCategories(db);
+  });
+  electron.ipcMain.handle("expenseCategories:create", (_event, name) => {
+    return createExpenseCategory(db, name);
+  });
+  electron.ipcMain.handle("expenseCategories:update", (_event, id, name) => {
+    updateExpenseCategory(db, id, name);
+    return { success: true };
+  });
+  electron.ipcMain.handle("expenseCategories:delete", (_event, id) => {
+    deleteExpenseCategory(db, id);
+    return { success: true };
+  });
+}
+function createExpense(db, input) {
+  const insertExpense = db.prepare(`
+    INSERT INTO expenses (date, amount, payment_method, category, note)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+  const result = db.transaction(() => {
+    const row = insertExpense.run(
+      input.date,
+      input.amount,
+      input.payment_method,
+      input.category,
+      input.note || null
+    );
+    const expenseId = Number(row.lastInsertRowid);
+    addFundTransaction(db, "expense", input.amount, expenseId, input.category);
+    return expenseId;
+  })();
+  return getExpenseById(db, result);
+}
+function getExpenseById(db, id) {
+  return db.prepare("SELECT * FROM expenses WHERE id = ?").get(id);
+}
+function getAllExpenses(db, filters) {
+  let sql = "SELECT * FROM expenses WHERE 1=1";
+  const params = [];
+  if (filters && filters.from) {
+    sql += " AND date >= ?";
+    params.push(filters.from);
+  }
+  if (filters && filters.to) {
+    sql += " AND date <= ?";
+    params.push(filters.to);
+  }
+  if (filters && filters.category) {
+    sql += " AND category = ?";
+    params.push(filters.category);
+  }
+  sql += " ORDER BY date DESC, created_at DESC";
+  return db.prepare(sql).all(...params);
+}
+function updateExpense(db, id, input) {
+  const old = getExpenseById(db, id);
+  if (!old) return;
+  db.transaction(() => {
+    db.prepare(`
+      UPDATE expenses SET date=?, amount=?, payment_method=?, category=?, note=?
+      WHERE id=?
+    `).run(input.date, input.amount, input.payment_method, input.category, input.note || null, id);
+    const diff = input.amount - old.amount;
+    if (diff !== 0) {
+      addFundTransaction(
+        db,
+        "expense",
+        diff,
+        id,
+        "Expense adjustment: " + input.category
+      );
+    }
+  })();
+}
+function deleteExpense(db, id) {
+  const expense = getExpenseById(db, id);
+  if (!expense) return;
+  db.transaction(() => {
+    db.prepare("DELETE FROM expenses WHERE id = ?").run(id);
+    addFundTransaction(db, "expense", -expense.amount, id, "Expense deleted: " + expense.category);
+  })();
+}
+function getExpenseSummary(db, from, to) {
+  const total = db.prepare(`
+    SELECT COALESCE(SUM(amount), 0) as total, COUNT(*) as count
+    FROM expenses
+    WHERE date BETWEEN ? AND ?
+  `).get(from, to);
+  const byCategory = db.prepare(`
+    SELECT category, COALESCE(SUM(amount), 0) as total, COUNT(*) as count
+    FROM expenses
+    WHERE date BETWEEN ? AND ?
+    GROUP BY category
+    ORDER BY total DESC
+  `).all(from, to);
+  return { total, byCategory };
+}
+function rowsToCsv(headers, rows) {
+  const escape = (val) => {
+    const s = val == null ? "" : String(val);
+    return s.includes(",") || s.includes('"') || s.includes("\n") ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  const lines = [headers.join(",")];
+  for (const row of rows) {
+    lines.push(headers.map((h) => escape(row[h])).join(","));
+  }
+  return lines.join("\r\n");
 }
 function registerSyncHandlers(db) {
   electron.ipcMain.handle("sync:exportDb", async () => {
@@ -571,6 +831,42 @@ function registerSyncHandlers(db) {
       const sourcePath = path.join(electron.app.getPath("userData"), "restaurant.db");
       fs.copyFileSync(sourcePath, result.filePath);
       return { success: true, message: "Database exported successfully", path: result.filePath };
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      return { success: false, message: "Export failed: " + errorMessage };
+    }
+  });
+  electron.ipcMain.handle("sync:exportCsv", async (_event, type, from, to) => {
+    let csv = "";
+    let defaultName = "export";
+    if (type === "orders") {
+      const report = getDateRangeReport(db, from, to);
+      const rows = report.orders || [];
+      csv = rowsToCsv(["id", "table_no", "status", "payment_method", "grand_total", "order_time"], rows);
+      defaultName = "orders-" + from + "-to-" + to;
+    } else if (type === "items") {
+      const rows = getItemPerformance(db, from, to);
+      csv = rowsToCsv(["name", "order_count", "total_qty", "total_revenue", "avg_price"], rows);
+      defaultName = "item-performance-" + from + "-to-" + to;
+    } else if (type === "expenses") {
+      const rows = getAllExpenses(db, { from, to });
+      csv = rowsToCsv(["id", "date", "amount", "payment_method", "category", "note"], rows);
+      defaultName = "expenses-" + from + "-to-" + to;
+    }
+    if (!csv) {
+      return { success: false, message: "No data to export" };
+    }
+    const result = await electron.dialog.showSaveDialog({
+      title: "Save CSV",
+      defaultPath: path.join(electron.app.getPath("documents"), defaultName + ".csv"),
+      filters: [{ name: "CSV File", extensions: ["csv"] }]
+    });
+    if (result.canceled || !result.filePath) {
+      return { success: false, message: "Export cancelled" };
+    }
+    try {
+      fs.writeFileSync(result.filePath, csv, "utf-8");
+      return { success: true, message: "CSV exported successfully", path: result.filePath };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
       return { success: false, message: "Export failed: " + errorMessage };
@@ -609,10 +905,7 @@ function registerSyncHandlers(db) {
     return { success: false, message: "Google Drive is not connected. Please connect your account first." };
   });
   electron.ipcMain.handle("sync:getStatus", () => {
-    return {
-      connected: false,
-      lastSyncTime: null
-    };
+    return { connected: false, lastSyncTime: null };
   });
 }
 function registerPrintHandlers(db, getMainWindow) {
@@ -713,6 +1006,37 @@ function generateBillHtml(order, settings) {
 </body>
 </html>`;
 }
+function registerExpenseHandlers(db) {
+  electron.ipcMain.handle("expenses:create", (_event, input) => {
+    return createExpense(db, input);
+  });
+  electron.ipcMain.handle("expenses:getAll", (_event, filters) => {
+    return getAllExpenses(db, filters);
+  });
+  electron.ipcMain.handle("expenses:update", (_event, id, input) => {
+    updateExpense(db, id, input);
+    return { success: true };
+  });
+  electron.ipcMain.handle("expenses:delete", (_event, id) => {
+    deleteExpense(db, id);
+    return { success: true };
+  });
+  electron.ipcMain.handle("expenses:getSummary", (_event, from, to) => {
+    return getExpenseSummary(db, from, to);
+  });
+}
+function registerFundHandlers(db) {
+  electron.ipcMain.handle("fund:getBalance", () => {
+    return { balance: getFundBalance(db) };
+  });
+  electron.ipcMain.handle("fund:setInitial", (_event, amount) => {
+    setInitialFund(db, amount);
+    return { success: true, balance: getFundBalance(db) };
+  });
+  electron.ipcMain.handle("fund:getTransactions", (_event, limit) => {
+    return getFundTransactions(db, limit);
+  });
+}
 let mainWindow = null;
 function createWindow() {
   mainWindow = new electron.BrowserWindow({
@@ -758,6 +1082,8 @@ electron.app.whenReady().then(() => {
   registerSettingsHandlers(db);
   registerSyncHandlers(db);
   registerPrintHandlers(db);
+  registerExpenseHandlers(db);
+  registerFundHandlers(db);
   electron.ipcMain.handle("menu:pickImage", async () => {
     const result = await electron.dialog.showOpenDialog({
       properties: ["openFile"],

@@ -8,6 +8,8 @@ import { registerReportHandlers } from './ipc/report-handlers'
 import { registerSettingsHandlers } from './ipc/settings-handlers'
 import { registerSyncHandlers } from './ipc/sync-handlers'
 import { registerPrintHandlers } from './ipc/print-handlers'
+import { registerExpenseHandlers } from './ipc/expense-handlers'
+import { registerFundHandlers } from './ipc/fund-handlers'
 
 let mainWindow: BrowserWindow | null = null
 
@@ -64,6 +66,8 @@ app.whenReady().then(() => {
   registerSettingsHandlers(db)
   registerSyncHandlers(db)
   registerPrintHandlers(db, () => mainWindow)
+  registerExpenseHandlers(db)
+  registerFundHandlers(db)
 
   // Image picker handler
   ipcMain.handle('menu:pickImage', async () => {
