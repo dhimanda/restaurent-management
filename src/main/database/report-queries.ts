@@ -79,7 +79,7 @@ export function getDateRangeReport(db: Database.Database, from: string, to: stri
   `).get(dateStart, dateEnd)
 
   const orders = db.prepare(`
-    SELECT id, table_no, status, payment_method, grand_total, order_time
+    SELECT id, order_number, table_no, status, payment_method, grand_total, order_time
     FROM orders
     WHERE order_time BETWEEN ? AND ?
     ORDER BY order_time DESC

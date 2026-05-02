@@ -5,7 +5,8 @@ import {
   getAllExpenses,
   updateExpense,
   deleteExpense,
-  getExpenseSummary
+  getExpenseSummary,
+  getDistinctExpenseResponsiblePersons
 } from '../database/expense-queries'
 
 export function registerExpenseHandlers(db: Database.Database): void {
@@ -29,5 +30,9 @@ export function registerExpenseHandlers(db: Database.Database): void {
 
   ipcMain.handle('expenses:getSummary', (_event, from: string, to: string) => {
     return getExpenseSummary(db, from, to)
+  })
+
+  ipcMain.handle('expenses:getResponsiblePersons', () => {
+    return getDistinctExpenseResponsiblePersons(db)
   })
 }

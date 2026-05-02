@@ -1,12 +1,11 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useOrderStore } from '../stores/useOrderStore'
 import { useMenuStore } from '../stores/useMenuStore'
 import { useSettingsStore } from '../stores/useSettingsStore'
 import { showToast, ToastContainer } from '../components/ui/Toast'
 import { formatCurrency } from '../utils/format'
-import { PAYMENT_METHODS } from '../utils/constants'
 import { MenuItem } from '../types/menu'
-import { Search, Minus, Plus, X, ShoppingCart, MessageSquare, Check } from 'lucide-react'
+import { Search, Minus, Plus, X, ShoppingCart, Check, UtensilsCrossed } from 'lucide-react'
 
 export function OrderPage(): JSX.Element {
   const menu = useMenuStore()
@@ -14,11 +13,26 @@ export function OrderPage(): JSX.Element {
   const settings = useSettingsStore()
   const currencySymbol = settings.getSetting('currency_symbol', '$')
   const taxRate = parseFloat(settings.getSetting('tax_rate', '5'))
+
+  const paymentMethods = useSettingsStore(s => s.paymentMethods)
+  const fetchPaymentMethods = useSettingsStore(s => s.fetchPaymentMethods)
+
   const [menuSearch, setMenuSearch] = useState('')
   const [activeCategory, setActiveCategory] = useState<number | null>(null)
   const searchRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => { menu.fetchItems(); menu.fetchCategories() }, [])
+  useEffect(() => {
+    menu.fetchItems()
+    menu.fetchCategories()
+    fetchPaymentMethods()
+  }, [])
+
+  // Set default payment method when methods load and cart has no method set
+  useEffect(() => {
+    if (paymentMethods.length > 0 && !order.paymentMethod) {
+      order.setPaymentMethod(paymentMethods[0].label)
+    }
+  }, [paymentMethods])
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -41,9 +55,9 @@ export function OrderPage(): JSX.Element {
 
   const handlePlaceOrder = async () => {
     if (order.cartItems.length === 0) { showToast('Cart is empty', 'warning'); return }
-    const success = await order.placeOrder()
-    if (success) {
-      showToast('Order #' + order.lastOrderId + ' placed successfully!', 'success')
+    const result = await order.placeOrder()
+    if (result) {
+      showToast('Order #' + result.order_number + ' placed successfully!', 'success')
       setTimeout(() => order.clearCart(), 1500)
     } else {
       showToast('Failed to place order', 'error')
@@ -76,9 +90,30 @@ export function OrderPage(): JSX.Element {
         <div className="flex-1 overflow-y-auto p-3">
           <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
             {filteredMenu.map(item => (
-              <button key={item.id} onClick={() => handleAddItem(item)} className="bg-surface-card border border-border rounded-xl p-3 text-left hover:border-primary/40 hover:bg-surface-hover transition-colors focus:border-primary active:scale-[0.98] min-h-[80px]">
-                <p className="font-medium text-text-primary text-sm leading-tight mb-1 line-clamp-2">{item.name}</p>
-                <p className="text-base font-bold text-primary">{formatCurrency(item.price, currencySymbol)}</p>
+              <button key={item.id} onClick={() => handleAddItem(item)} className="bg-surface-card border border-border rounded-xl text-left hover:border-primary/40 hover:bg-surface-hover transition-colors focus:border-primary active:scale-[0.98] overflow-hidden flex flex-col">
+                <div className="w-full h-[72px] relative bg-surface-hover flex items-center justify-center shrink-0 overflow-hidden">
+                  {item.image_path ? (
+                    <img
+                      src={'file://' + item.image_path}
+                      alt={item.name}
+                      loading="lazy"
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        const img = e.target as HTMLImageElement
+                        img.style.display = 'none'
+                        const fallback = img.parentElement && img.parentElement.querySelector('.fallback-icon')
+                        if (fallback) (fallback as HTMLElement).style.display = 'flex'
+                      }}
+                    />
+                  ) : null}
+                  <div className={'fallback-icon w-full h-full items-center justify-center bg-gradient-to-br from-primary/10 to-primary/5 absolute inset-0 ' + (item.image_path ? 'hidden' : 'flex')}>
+                    <UtensilsCrossed className="w-6 h-6 text-primary/40" />
+                  </div>
+                </div>
+                <div className="p-2.5">
+                  <p className="font-medium text-text-primary text-sm leading-tight mb-1 line-clamp-2">{item.name}</p>
+                  <p className="text-base font-bold text-primary">{formatCurrency(item.price, currencySymbol)}</p>
+                </div>
               </button>
             ))}
           </div>
@@ -126,7 +161,7 @@ export function OrderPage(): JSX.Element {
         {/* Cart Footer */}
         {order.cartItems.length > 0 && (
           <div className="px-4 py-3 border-t border-border shrink-0">
-            {/* Discount */}
+            {/* Discount + Payment Method */}
             <div className="flex gap-2 mb-3">
               <select value={order.discountType} onChange={e => order.setDiscountType(e.target.value as any)} className="px-2 py-1.5 bg-surface-hover border border-border rounded-lg text-xs text-text-secondary focus:outline-none">
                 <option value="">No Discount</option>
@@ -134,8 +169,14 @@ export function OrderPage(): JSX.Element {
                 <option value="percentage">%</option>
               </select>
               {order.discountType && <input type="number" value={order.discountValue || ''} onChange={e => order.setDiscountValue(parseFloat(e.target.value) || 0)} placeholder="0" className="flex-1 px-2 py-1.5 bg-surface-hover border border-border rounded-lg text-xs text-text-primary focus:outline-none" />}
-              <select value={order.paymentMethod} onChange={e => order.setPaymentMethod(e.target.value)} className="px-2 py-1.5 bg-surface-hover border border-border rounded-lg text-xs text-text-secondary focus:outline-none">
-                {PAYMENT_METHODS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+              <select
+                id="order-payment-method"
+                value={order.paymentMethod}
+                onChange={e => order.setPaymentMethod(e.target.value)}
+                className="px-2 py-1.5 bg-surface-hover border border-border rounded-lg text-xs text-text-secondary focus:outline-none"
+              >
+                {paymentMethods.length === 0 && <option value="">Loading...</option>}
+                {paymentMethods.map(pm => <option key={pm.id} value={pm.label}>{pm.label}</option>)}
               </select>
             </div>
 

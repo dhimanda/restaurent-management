@@ -33,13 +33,6 @@ export const STATUS_LABELS: Record<string, string> = {
   cancelled: 'Cancelled'
 }
 
-export const PAYMENT_METHODS = [
-  { value: 'cash', label: 'Cash' },
-  { value: 'card', label: 'Card' },
-  { value: 'mobile', label: 'Mobile' },
-  { value: 'other', label: 'Other' }
-]
-
 export const TAG_OPTIONS = [
   'Spicy',
   'Vegan',

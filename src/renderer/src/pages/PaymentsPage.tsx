@@ -13,6 +13,7 @@ interface ExpenseForm {
   amount: string
   payment_method: string
   category: string
+  responsible_person: string
   note: string
 }
 
@@ -21,6 +22,7 @@ const EMPTY_FORM: ExpenseForm = {
   amount: '',
   payment_method: '',
   category: '',
+  responsible_person: '',
   note: ''
 }
 
@@ -54,6 +56,7 @@ export function PaymentsPage(): JSX.Element {
   const [form, setForm] = useState<ExpenseForm>(EMPTY_FORM)
   const [initialFundInput, setInitialFundInput] = useState('')
   const [showFundInput, setShowFundInput] = useState(false)
+  const [responsiblePersons, setResponsiblePersons] = useState<string[]>([])
 
   useEffect(() => {
     fetchPaymentMethods()
@@ -61,6 +64,7 @@ export function PaymentsPage(): JSX.Element {
     fetchBalance()
     fetchExpenses({ from: filterFrom, to: filterTo })
     fetchSummary(filterFrom, filterTo)
+    window.api.expenses.getResponsiblePersons().then(p => setResponsiblePersons(p)).catch(() => {})
   }, [])
 
   const handleApplyFilter = () => {
@@ -73,7 +77,8 @@ export function PaymentsPage(): JSX.Element {
     setForm({
       ...EMPTY_FORM,
       payment_method: paymentMethods.length > 0 ? paymentMethods[0].label : '',
-      category: expenseCategories.length > 0 ? expenseCategories[0].name : ''
+      category: expenseCategories.length > 0 ? expenseCategories[0].name : '',
+      responsible_person: form.responsible_person || ''
     })
     setShowModal(true)
   }
@@ -85,6 +90,7 @@ export function PaymentsPage(): JSX.Element {
       amount: String(expense.amount),
       payment_method: expense.payment_method,
       category: expense.category,
+      responsible_person: expense.responsible_person || '',
       note: expense.note || ''
     })
     setShowModal(true)
@@ -106,12 +112,17 @@ export function PaymentsPage(): JSX.Element {
       showToast('Please select a category.', 'error')
       return
     }
+    if (!form.responsible_person || !form.responsible_person.trim()) {
+      showToast('Please enter the responsible person.', 'error')
+      return
+    }
 
     const input = {
       date: form.date,
       amount,
       payment_method: form.payment_method,
       category: form.category,
+      responsible_person: form.responsible_person,
       note: form.note || null
     }
 
@@ -125,6 +136,8 @@ export function PaymentsPage(): JSX.Element {
 
     await fetchBalance()
     await fetchSummary(filterFrom, filterTo)
+    // Refresh autocomplete suggestions
+    window.api.expenses.getResponsiblePersons().then(p => setResponsiblePersons(p)).catch(() => {})
     handleCloseModal()
   }
 
@@ -309,6 +322,7 @@ export function PaymentsPage(): JSX.Element {
                   <th className="text-left px-4 py-3 text-[var(--color-text-muted)] font-medium">Category</th>
                   <th className="text-left px-4 py-3 text-[var(--color-text-muted)] font-medium">Payment</th>
                   <th className="text-left px-4 py-3 text-[var(--color-text-muted)] font-medium">Note</th>
+                  <th className="text-left px-4 py-3 text-[var(--color-text-muted)] font-medium">Received By</th>
                   <th className="text-right px-4 py-3 text-[var(--color-text-muted)] font-medium">Amount</th>
                   <th className="px-4 py-3"></th>
                 </tr>
@@ -324,6 +338,7 @@ export function PaymentsPage(): JSX.Element {
                     </td>
                     <td className="px-4 py-3 text-[var(--color-text-secondary)]">{expense.payment_method}</td>
                     <td className="px-4 py-3 text-[var(--color-text-muted)] max-w-[200px] truncate">{expense.note || '—'}</td>
+                    <td className="px-4 py-3 text-[var(--color-text-secondary)]">{expense.responsible_person || 'N/A'}</td>
                     <td className="px-4 py-3 text-right font-bold text-red-400">
                       -{formatCurrency(expense.amount, currencySymbol)}
                     </td>
@@ -418,6 +433,23 @@ export function PaymentsPage(): JSX.Element {
                       <option key={pm.id} value={pm.label}>{pm.label}</option>
                     ))}
                   </select>
+                </div>
+                <div className="col-span-2">
+                  <label className={lc}>Responsible Person <span className="text-red-400">*</span></label>
+                  <input
+                    id="expense-form-responsible-person"
+                    type="text"
+                    list="expense-responsible-persons-list"
+                    value={form.responsible_person}
+                    onChange={e => setForm(prev => ({ ...prev, responsible_person: e.target.value }))}
+                    placeholder="Who received the money?"
+                    className={ic}
+                  />
+                  <datalist id="expense-responsible-persons-list">
+                    {responsiblePersons.map(p => (
+                      <option key={p} value={p} />
+                    ))}
+                  </datalist>
                 </div>
                 <div className="col-span-2">
                   <label className={lc}>Note (optional)</label>

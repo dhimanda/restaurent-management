@@ -6,6 +6,7 @@ export interface Expense {
   amount: number
   payment_method: string
   category: string
+  responsible_person: string
   note: string | null
   created_at: string
 }

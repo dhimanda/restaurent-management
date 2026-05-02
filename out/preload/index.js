@@ -21,7 +21,11 @@ const api = {
     getAll: (filters) => electron.ipcRenderer.invoke("orders:getAll", filters),
     getById: (id) => electron.ipcRenderer.invoke("orders:getById", id),
     updateStatus: (id, status) => electron.ipcRenderer.invoke("orders:updateStatus", id, status),
-    cancel: (id) => electron.ipcRenderer.invoke("orders:cancel", id)
+    updatePaymentMethod: (id, paymentMethod) => electron.ipcRenderer.invoke("orders:updatePaymentMethod", id, paymentMethod),
+    cancel: (id) => electron.ipcRenderer.invoke("orders:cancel", id),
+    getAllDetailed: (filters) => electron.ipcRenderer.invoke("orders:getAllDetailed", filters || {}),
+    getAllForExport: (filters) => electron.ipcRenderer.invoke("orders:getAllForExport", filters || {}),
+    getResponsiblePersons: () => electron.ipcRenderer.invoke("orders:getResponsiblePersons")
   },
   reports: {
     dailySummary: (date) => electron.ipcRenderer.invoke("reports:dailySummary", date),
@@ -43,14 +47,16 @@ const api = {
     exportCsv: (type, from, to) => electron.ipcRenderer.invoke("sync:exportCsv", type, from, to)
   },
   print: {
-    printBill: (orderId) => electron.ipcRenderer.invoke("print:bill", orderId)
+    printBill: (orderId) => electron.ipcRenderer.invoke("print:bill", orderId),
+    exportPdf: (orderId) => electron.ipcRenderer.invoke("print:exportPdf", orderId)
   },
   expenses: {
     create: (input) => electron.ipcRenderer.invoke("expenses:create", input),
     getAll: (filters) => electron.ipcRenderer.invoke("expenses:getAll", filters),
     update: (id, input) => electron.ipcRenderer.invoke("expenses:update", id, input),
     delete: (id) => electron.ipcRenderer.invoke("expenses:delete", id),
-    getSummary: (from, to) => electron.ipcRenderer.invoke("expenses:getSummary", from, to)
+    getSummary: (from, to) => electron.ipcRenderer.invoke("expenses:getSummary", from, to),
+    getResponsiblePersons: () => electron.ipcRenderer.invoke("expenses:getResponsiblePersons")
   },
   fund: {
     getBalance: () => electron.ipcRenderer.invoke("fund:getBalance"),

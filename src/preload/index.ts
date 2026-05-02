@@ -21,7 +21,11 @@ const api = {
     getAll: (filters?: any) => ipcRenderer.invoke('orders:getAll', filters),
     getById: (id: number) => ipcRenderer.invoke('orders:getById', id),
     updateStatus: (id: number, status: string) => ipcRenderer.invoke('orders:updateStatus', id, status),
-    cancel: (id: number) => ipcRenderer.invoke('orders:cancel', id)
+    updatePaymentMethod: (id: number, paymentMethod: string) => ipcRenderer.invoke('orders:updatePaymentMethod', id, paymentMethod),
+    cancel: (id: number) => ipcRenderer.invoke('orders:cancel', id),
+    getAllDetailed: (filters?: any) => ipcRenderer.invoke('orders:getAllDetailed', filters || {}),
+    getAllForExport: (filters?: any) => ipcRenderer.invoke('orders:getAllForExport', filters || {}),
+    getResponsiblePersons: () => ipcRenderer.invoke('orders:getResponsiblePersons')
   },
   reports: {
     dailySummary: (date: string) => ipcRenderer.invoke('reports:dailySummary', date),
@@ -43,14 +47,16 @@ const api = {
     exportCsv: (type: string, from: string, to: string) => ipcRenderer.invoke('sync:exportCsv', type, from, to)
   },
   print: {
-    printBill: (orderId: number) => ipcRenderer.invoke('print:bill', orderId)
+    printBill: (orderId: number) => ipcRenderer.invoke('print:bill', orderId),
+    exportPdf: (orderId: number) => ipcRenderer.invoke('print:exportPdf', orderId)
   },
   expenses: {
     create: (input: any) => ipcRenderer.invoke('expenses:create', input),
     getAll: (filters?: any) => ipcRenderer.invoke('expenses:getAll', filters),
     update: (id: number, input: any) => ipcRenderer.invoke('expenses:update', id, input),
     delete: (id: number) => ipcRenderer.invoke('expenses:delete', id),
-    getSummary: (from: string, to: string) => ipcRenderer.invoke('expenses:getSummary', from, to)
+    getSummary: (from: string, to: string) => ipcRenderer.invoke('expenses:getSummary', from, to),
+    getResponsiblePersons: () => ipcRenderer.invoke('expenses:getResponsiblePersons')
   },
   fund: {
     getBalance: () => ipcRenderer.invoke('fund:getBalance'),

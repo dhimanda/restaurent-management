@@ -4,10 +4,15 @@ import {
   createOrder,
   getActiveOrders,
   getAllOrders,
+  getAllOrdersDetailed,
+  getAllOrdersForExport,
   getOrderById,
   updateOrderStatus,
+  updateOrderPaymentMethod,
   cancelOrder,
-  OrderInput
+  getDistinctResponsiblePersons,
+  OrderInput,
+  DetailedOrderFilters
 } from '../database/order-queries'
 
 export function registerOrderHandlers(db: Database.Database): void {
@@ -31,7 +36,23 @@ export function registerOrderHandlers(db: Database.Database): void {
     return updateOrderStatus(db, id, status)
   })
 
+  ipcMain.handle('orders:updatePaymentMethod', (_event, id: number, paymentMethod: string) => {
+    return updateOrderPaymentMethod(db, id, paymentMethod)
+  })
+
   ipcMain.handle('orders:cancel', (_event, id: number) => {
     return cancelOrder(db, id)
+  })
+
+  ipcMain.handle('orders:getAllDetailed', (_event, filters: DetailedOrderFilters) => {
+    return getAllOrdersDetailed(db, filters)
+  })
+
+  ipcMain.handle('orders:getAllForExport', (_event, filters: DetailedOrderFilters) => {
+    return getAllOrdersForExport(db, filters)
+  })
+
+  ipcMain.handle('orders:getResponsiblePersons', () => {
+    return getDistinctResponsiblePersons(db)
   })
 }

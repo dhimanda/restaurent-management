@@ -1,6 +1,13 @@
 import { create } from 'zustand'
 import { CartItem } from '../types/order'
 
+/**
+ * Round to 2 decimal places — prevents floating-point drift in financial calculations
+ */
+function roundMoney(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100
+}
+
 interface OrderState {
   cartItems: CartItem[]
   tableNo: string
@@ -24,7 +31,7 @@ interface OrderState {
   getDiscountAmount: () => number
   getTaxTotal: (taxRate: number) => number
   getGrandTotal: (taxRate: number) => number
-  placeOrder: () => Promise<boolean>
+  placeOrder: () => Promise<{ id: number; order_number: string } | null>
   clearCart: () => void
   setShowConfirmation: (show: boolean) => void
 }
@@ -34,7 +41,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   tableNo: '',
   discountType: '',
   discountValue: 0,
-  paymentMethod: 'cash',
+  paymentMethod: '',
   orderNotes: '',
   isPlacing: false,
   showConfirmation: false,
@@ -87,7 +94,7 @@ export const useOrderStore = create<OrderState>((set, get) => ({
   setOrderNotes: (notes) => set({ orderNotes: notes }),
 
   getSubtotal: () => {
-    return get().cartItems.reduce((sum, item) => sum + item.qty * item.unit_price, 0)
+    return roundMoney(get().cartItems.reduce((sum, item) => sum + item.qty * item.unit_price, 0))
   },
 
   getDiscountAmount: () => {
@@ -95,16 +102,17 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     const subtotal = state.getSubtotal()
     if (!state.discountValue || state.discountValue <= 0) return 0
     if (state.discountType === 'percentage') {
-      return subtotal * (state.discountValue / 100)
+      const clampedPercent = Math.min(state.discountValue, 100)
+      return roundMoney(subtotal * (clampedPercent / 100))
     }
-    return state.discountValue
+    return roundMoney(Math.min(state.discountValue, subtotal))
   },
 
   getTaxTotal: (taxRate: number) => {
     const state = get()
     const subtotal = state.getSubtotal()
     const discount = state.getDiscountAmount()
-    return (subtotal - discount) * (taxRate / 100)
+    return roundMoney((subtotal - discount) * (taxRate / 100))
   },
 
   getGrandTotal: (taxRate: number) => {
@@ -112,39 +120,39 @@ export const useOrderStore = create<OrderState>((set, get) => ({
     const subtotal = state.getSubtotal()
     const discount = state.getDiscountAmount()
     const tax = state.getTaxTotal(taxRate)
-    return subtotal - discount + tax
+    return roundMoney(subtotal - discount + tax)
   },
 
   placeOrder: async () => {
     const state = get()
-    if (state.cartItems.length === 0) return false
+    if (state.cartItems.length === 0) return null
 
     set({ isPlacing: true })
     try {
       const result = await window.api.orders.create({
         table_no: state.tableNo,
-        payment_method: state.paymentMethod,
+        payment_method: state.paymentMethod || 'Cash',
         discount_type: state.discountType,
         discount_value: state.discountValue,
         notes: state.orderNotes,
         items: state.cartItems
       })
       set({ lastOrderId: result.id, isPlacing: false, showConfirmation: true })
-      return true
+      return { id: result.id, order_number: result.order_number }
     } catch (error) {
       console.error('Failed to place order:', error)
       set({ isPlacing: false })
-      return false
+      return null
     }
   },
 
   clearCart: () => {
+    // Keep paymentMethod and responsiblePerson for consecutive orders
     set({
       cartItems: [],
       tableNo: '',
       discountType: '',
       discountValue: 0,
-      paymentMethod: 'cash',
       orderNotes: '',
       lastOrderId: null,
       showConfirmation: false

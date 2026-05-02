@@ -1,8 +1,9 @@
 export interface Order {
   id: number
+  order_number: string
   table_no: string
   status: 'pending' | 'preparing' | 'served' | 'cancelled'
-  payment_method: 'cash' | 'card' | 'mobile' | 'other'
+  payment_method: string
   discount_type: 'flat' | 'percentage' | ''
   discount_value: number
   subtotal: number

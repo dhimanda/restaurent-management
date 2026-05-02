@@ -53,14 +53,14 @@ export function registerSyncHandlers(db: Database.Database): void {
     if (type === 'orders') {
       const report = getDateRangeReport(db, from, to)
       const rows = (report.orders as Record<string, unknown>[]) || []
-      csv = rowsToCsv(['id', 'table_no', 'status', 'payment_method', 'grand_total', 'order_time'], rows)
+      csv = rowsToCsv(['id', 'order_number', 'table_no', 'status', 'payment_method', 'grand_total', 'order_time'], rows)
       defaultName = 'orders-' + from + '-to-' + to
     } else if (type === 'items') {
       const rows = getItemPerformance(db, from, to) as Record<string, unknown>[]
       csv = rowsToCsv(['name', 'order_count', 'total_qty', 'total_revenue', 'avg_price'], rows)
       defaultName = 'item-performance-' + from + '-to-' + to
     } else if (type === 'expenses') {
-      const rows = getAllExpenses(db, { from, to }) as Record<string, unknown>[]
+      const rows = getAllExpenses(db, { from, to }) as unknown as Record<string, unknown>[]
       csv = rowsToCsv(['id', 'date', 'amount', 'payment_method', 'category', 'note'], rows)
       defaultName = 'expenses-' + from + '-to-' + to
     }

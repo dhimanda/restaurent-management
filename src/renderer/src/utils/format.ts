@@ -1,5 +1,6 @@
 export function formatCurrency(amount: number, symbol: string = '$'): string {
-  return symbol + amount.toFixed(2)
+  const rounded = Math.round((amount + Number.EPSILON) * 100) / 100
+  return symbol + rounded.toFixed(2)
 }
 
 export function formatDate(dateStr: string): string {

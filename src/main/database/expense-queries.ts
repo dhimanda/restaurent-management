@@ -6,6 +6,7 @@ export interface ExpenseInput {
   amount: number
   payment_method: string
   category: string
+  responsible_person?: string
   note?: string
 }
 
@@ -15,14 +16,15 @@ export interface Expense {
   amount: number
   payment_method: string
   category: string
+  responsible_person: string
   note: string | null
   created_at: string
 }
 
 export function createExpense(db: Database.Database, input: ExpenseInput): Expense {
   const insertExpense = db.prepare(`
-    INSERT INTO expenses (date, amount, payment_method, category, note)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO expenses (date, amount, payment_method, category, responsible_person, note)
+    VALUES (?, ?, ?, ?, ?, ?)
   `)
 
   const result = db.transaction(() => {
@@ -31,6 +33,7 @@ export function createExpense(db: Database.Database, input: ExpenseInput): Expen
       input.amount,
       input.payment_method,
       input.category,
+      input.responsible_person || '',
       input.note || null
     )
     const expenseId = Number(row.lastInsertRowid)
@@ -78,9 +81,9 @@ export function updateExpense(db: Database.Database, id: number, input: ExpenseI
 
   db.transaction(() => {
     db.prepare(`
-      UPDATE expenses SET date=?, amount=?, payment_method=?, category=?, note=?
+      UPDATE expenses SET date=?, amount=?, payment_method=?, category=?, responsible_person=?, note=?
       WHERE id=?
-    `).run(input.date, input.amount, input.payment_method, input.category, input.note || null, id)
+    `).run(input.date, input.amount, input.payment_method, input.category, input.responsible_person || '', input.note || null, id)
 
     // Adjust fund: reverse the old debit and apply the new one
     const diff = input.amount - old.amount
@@ -123,4 +126,14 @@ export function getExpenseSummary(db: Database.Database, from: string, to: strin
   `).all(from, to)
 
   return { total, byCategory }
+}
+
+/**
+ * Get distinct responsible person names from expenses for autocomplete.
+ */
+export function getDistinctExpenseResponsiblePersons(db: Database.Database): string[] {
+  const rows = db.prepare(
+    "SELECT DISTINCT responsible_person FROM expenses WHERE responsible_person IS NOT NULL AND responsible_person != '' ORDER BY responsible_person"
+  ).all() as { responsible_person: string }[]
+  return rows.map(r => r.responsible_person)
 }

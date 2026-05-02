@@ -33,7 +33,11 @@ export interface ElectronAPI {
     getAll: (filters?: any) => Promise<any[]>
     getById: (id: number) => Promise<any>
     updateStatus: (id: number, status: string) => Promise<any>
+    updatePaymentMethod: (id: number, paymentMethod: string) => Promise<any>
     cancel: (id: number) => Promise<any>
+    getAllDetailed: (filters?: any) => Promise<any>
+    getAllForExport: (filters?: any) => Promise<any[]>
+    getResponsiblePersons: () => Promise<string[]>
   }
   reports: {
     dailySummary: (date: string) => Promise<any>
@@ -56,6 +60,7 @@ export interface ElectronAPI {
   }
   print: {
     printBill: (orderId: number) => Promise<{ success: boolean; message?: string }>
+    exportPdf: (orderId: number) => Promise<{ success: boolean; message?: string; path?: string }>
   }
   expenses: {
     create: (input: any) => Promise<any>
@@ -63,6 +68,7 @@ export interface ElectronAPI {
     update: (id: number, input: any) => Promise<{ success: boolean }>
     delete: (id: number) => Promise<{ success: boolean }>
     getSummary: (from: string, to: string) => Promise<any>
+    getResponsiblePersons: () => Promise<string[]>
   }
   fund: {
     getBalance: () => Promise<{ balance: number }>
